@@ -16,9 +16,18 @@ async function main() {
   console.log(balance.toString())
   const wrapValue = hre.ethers.utils.parseEther("1")
 
-  const ETHWrapperContract = await ETHWrapperFactory.attach("<Your ETHWrapper address>");
+  const ETHWrapperContract = await ETHWrapperFactory.attach("0x853f566b4d8AC770464D01cd7409dB743Fd05Be3");
 
-	console.log(ETHWrapperContract.address)  
+  console.log("ETHWrapper Address:");
+  console.log(ETHWrapperContract.address)  
+
+  const WETHFactory = await hre.ethers.getContractFactory("WETH");
+  const wethAddress = await ETHWrapperContract.WETHToken();
+//   console.log("WETH Token Address:");
+//   console.log(wethAddress);
+//   const WETHContract = await WETHFactory.attach(wethAddress);
+//   console.log("WETH Token Address:");
+//   console.log(WETHContract.address);
 
 }
 main()

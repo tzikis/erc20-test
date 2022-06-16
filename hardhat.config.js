@@ -1,4 +1,5 @@
 require("@nomiclabs/hardhat-waffle");
+require("@nomiclabs/hardhat-etherscan");
 
 const dotenv = require("dotenv");
 dotenv.config({path: __dirname + '/.env'});
@@ -84,3 +85,4 @@ task("deploy-mainnet", "Deploys contract on a provided network")
 
 // hardhat note lime contract deployed address: 0x5FbDB2315678afecb367f032d93F642f64180aa3
 // hardhat note eth wrapper contract deployed address: 0x5FbDB2315678afecb367f032d93F642f64180aa3 ?? same?
+// eth wrapper contract on rinkeby 0x853f566b4d8AC770464D01cd7409dB743Fd05Be3
