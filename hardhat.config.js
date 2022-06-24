@@ -27,6 +27,10 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
     rinkeby: {
       url: "https://rinkeby.infura.io/v3/" + INFURA_API_KEY,
       accounts: [PRIVATE_KEY]
+    },
+    ropsten: {
+      url: "https://ropsten.infura.io/v3/" + INFURA_API_KEY,
+      accounts: [PRIVATE_KEY]
     }
   },
   etherscan: {
