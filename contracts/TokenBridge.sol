@@ -48,7 +48,6 @@ contract TokenBridge is Ownable {
         require(unlockingNoncesUsed[receiver][nonce] == false);
         unlockingNoncesUsed[receiver][nonce] = true;
 
-        // we should actually be verifying the receiver address too here
         require(verify("burn()", tokenAddress, receiver, amount, nonce, v, r, s) == owner());
 
         (success, result) = tokenAddress.call(abi.encodeWithSelector(ERC20.transfer.selector, receiver, amount));
@@ -58,16 +57,15 @@ contract TokenBridge is Ownable {
         emit Unlock(tokenAddress, receiver, amount);
     }
 
-// TODO: change order of receiver and amount, you idiot
-    event Mint(address _tokenNativeAddress, uint32 _amount, address _receiver);
-    event Burn(address _tokenNativeAddress, uint32 _amount, address _receiver, uint32 nonce);
+    event Mint(address _tokenNativeAddress, address _receiver, uint32 _amount, address _wrappedTokenAddress);
+    event Burn(address _tokenNativeAddress, address _receiver, uint32 _amount, address _wrappedTokenAddress, uint32 nonce);
 
     struct WrappedTokenParams {
         string name;
         string symbol;
     }
 
-    mapping(address => address) public tokenAddresses;
+    mapping(address => address) public wrappedTokenAddresses;
 
     mapping(address => mapping(uint32 => bool)) public mintingNoncesUsed;
 
@@ -77,29 +75,27 @@ contract TokenBridge is Ownable {
         require(mintingNoncesUsed[receiver][nonce] == false);
         mintingNoncesUsed[receiver][nonce] = true;
 
-        // we should actually be verifying the token native address too here
         require(verify("lock()", tokenNativeAddress, receiver, amount, nonce, v, r, s) == owner());
 
-        if(tokenAddresses[tokenNativeAddress] == address(0)){
+        if(wrappedTokenAddresses[tokenNativeAddress] == address(0)){
             ERC20PresetMinterPauser newERC20Token = new ERC20PresetMinterPauser(string(abi.encodePacked("Wrapped ",tokenParams.name)),string(abi.encodePacked("W", tokenParams.symbol)));
-            tokenAddresses[tokenNativeAddress] = address(newERC20Token);
+            wrappedTokenAddresses[tokenNativeAddress] = address(newERC20Token);
         }
-        (success, result) = tokenAddresses[tokenNativeAddress].call(abi.encodeWithSelector(ERC20PresetMinterPauser.mint.selector, receiver, amount));
+        (success, result) = wrappedTokenAddresses[tokenNativeAddress].call(abi.encodeWithSelector(ERC20PresetMinterPauser.mint.selector, receiver, amount));
         require(success);
-        emit Mint(tokenNativeAddress, amount, receiver);
+        emit Mint(tokenNativeAddress, receiver, amount, wrappedTokenAddresses[tokenNativeAddress]);
     }
 
     mapping(address => uint32) public burningNonces;
 
-    //the way it's done now is we use the nonnative address as a parameter, which i think is correct.
-    //but we should also use a reverse mapping to keep the original token address so that we can show both addresses on the event
+    //decide if we should use the native or the non-native address here as a parameter
     function burn(address tokenNativeAddress, uint32 amount) public returns (bool success, bytes memory result) {
         require(amount > 0);
 
-        (success, result) = tokenAddresses[tokenNativeAddress].call(abi.encodeWithSelector(ERC20Burnable.burnFrom.selector, msg.sender, amount));
+        (success, result) = wrappedTokenAddresses[tokenNativeAddress].call(abi.encodeWithSelector(ERC20Burnable.burnFrom.selector, msg.sender, amount));
         require(success);
 
-        emit Burn(tokenNativeAddress, amount, msg.sender, burningNonces[msg.sender]++);
+        emit Burn(tokenNativeAddress, msg.sender, amount, wrappedTokenAddresses[tokenNativeAddress], burningNonces[msg.sender]++);
     }
 
     function verify(string memory functionName, address tokenAddress, address receiverAddress, uint32 amount, uint32 nonce, uint8 v, bytes32 r, bytes32 s) view public returns(address){
