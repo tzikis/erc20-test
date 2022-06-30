@@ -7,21 +7,12 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 
 contract TokenBridge is Ownable {
-    // event LogETHWrapped(address sender, uint256 amount);
-    // event LogETHUnwrapped(address sender, uint256 amount);
-    // event Lock(uint8 targetChain, address token, bytes receiver, uint256 amount, uint256 serviceFee);
-    // event Unlock(address token, uint256 amount, address receiver);
-
-    // event Lock(uint8 targetChain, address token, uint256 amount);
-    event Lock(address token, address owner, uint256 amount);
-    event Unlock(address token, address owner, uint256 amount);
-
-    mapping(address => mapping(address => uint256)) private lockedTokens;
+    event Lock(address token, address owner, uint32 amount, uint32 nonce);
+    event Unlock(address token, address owner, uint32 amount);
 
 	bytes32 public DOMAIN_SEPARATOR;
-
-    mapping(address => uint256) public nonces;
-    bytes32 public constant VERIFY_TYPEHASH = keccak256("Verify(string functionName,address tokenAddress,uint256 amount,uint256 nonce)");
+    // bytes32 public constant VERIFY_TYPEHASH = keccak256("Verify(string functionName,address tokenAddress,uint256 amount,uint256 nonce)");
+    bytes32 public constant VERIFY_TYPEHASH = keccak256("Verify(string functionName,address tokenAddress,address receiverAddress,uint32 amount,uint32 nonce)");
 
     constructor() {
         DOMAIN_SEPARATOR = keccak256(
@@ -36,71 +27,82 @@ contract TokenBridge is Ownable {
         );
     }
 
-    // function lock(uint8 targetChain, address tokenAddress, uint256 value) public returns (bool success, bytes memory result) {
-    function lock(address tokenAddress, uint256 amount) public returns (bool success, bytes memory result) {
-        require(amount > 0, "We need to wrap at least 1 token.");
+    mapping(address => mapping(address => uint32)) public lockedTokens;
+    mapping(address => uint32) public lockingNonces;
+
+    function lock(address tokenAddress, uint32 amount) public returns (bool success, bytes memory result) {
+        require(amount > 0);
         (success, result) = tokenAddress.call(abi.encodeWithSelector(ERC20.transferFrom.selector, msg.sender, address(this), amount));
-        require(success, "Transaction failed. Have you allowed token transfer to this contract?");
+        require(success);
         lockedTokens[tokenAddress][msg.sender] += amount;
 
-        // emit Lock(targetChain, tokenAddress, value);
-        // emit Lock(tokenAddress, value);
-        emit Lock(tokenAddress, msg.sender, amount);
+        emit Lock(tokenAddress, msg.sender, amount, lockingNonces[msg.sender]++);
     }
 
-    function unlock(address tokenAddress, address receiver, uint256 amount, uint8 v, bytes32 r, bytes32 s) public onlyOwner returns (bool success, bytes memory result){
-        require(amount > 0, "We need to unwrap at least 1 token.");
+    mapping(address => mapping(uint32 => bool)) public unlockingNoncesUsed;
 
-        require(lockedTokens[tokenAddress][receiver] >= amount, "This user hasn't locked this many tokens.");
+    function unlock(address tokenAddress, address receiver, uint32 amount, uint32 nonce, uint8 v, bytes32 r, bytes32 s) public onlyOwner returns (bool success, bytes memory result){
+        require(amount > 0);
+        require(lockedTokens[tokenAddress][receiver] >= amount);
 
-        // we should actually be verifying the receiver too here
-        address verificationAddress = verify("unlock()", tokenAddress, amount, v, r, s);
-        require(verificationAddress == owner(), "Signature was not valid");
+        require(unlockingNoncesUsed[receiver][nonce] == false);
+        unlockingNoncesUsed[receiver][nonce] = true;
+
+        // we should actually be verifying the receiver address too here
+        require(verify("burn()", tokenAddress, receiver, amount, nonce, v, r, s) == owner());
 
         (success, result) = tokenAddress.call(abi.encodeWithSelector(ERC20.transfer.selector, receiver, amount));
-        require(success, "Transaction failed.");
+        require(success);
         lockedTokens[tokenAddress][receiver] -= amount;
 
-        // emit Unlock(tokenAddress, value);
         emit Unlock(tokenAddress, receiver, amount);
     }
 
-    event Mint(bytes _tokenNativeAddress, uint256 _amount, address _receiver);
-    event Burn(bytes _tokenNativeAddress, uint256 _amount, address _receiver);
+// TODO: change order of receiver and amount, you idiot
+    event Mint(address _tokenNativeAddress, uint32 _amount, address _receiver);
+    event Burn(address _tokenNativeAddress, uint32 _amount, address _receiver, uint32 nonce);
 
     struct WrappedTokenParams {
         string name;
         string symbol;
     }
 
-    mapping(bytes => address) public tokenAddresses;
+    mapping(address => address) public tokenAddresses;
 
-    function mint(bytes memory tokenNativeAddress, address receiver, uint256 amount, WrappedTokenParams memory tokenParams, uint8 v, bytes32 r, bytes32 s) public onlyOwner returns (bool success, bytes memory result){
-        require(amount > 0, "We need to mint at least 1 token.");
+    mapping(address => mapping(uint32 => bool)) public mintingNoncesUsed;
+
+    function mint(address tokenNativeAddress, address receiver, uint32 amount, uint32 nonce, WrappedTokenParams memory tokenParams, uint8 v, bytes32 r, bytes32 s) public onlyOwner returns (bool success, bytes memory result){
+        require(amount > 0);
+
+        require(mintingNoncesUsed[receiver][nonce] == false);
+        mintingNoncesUsed[receiver][nonce] = true;
 
         // we should actually be verifying the token native address too here
-        address verificationAddress = verify("mint()", receiver, amount, v, r, s);
-        require(verificationAddress == owner(), "Signature was not valid");
+        require(verify("lock()", tokenNativeAddress, receiver, amount, nonce, v, r, s) == owner());
 
         if(tokenAddresses[tokenNativeAddress] == address(0)){
             ERC20PresetMinterPauser newERC20Token = new ERC20PresetMinterPauser(string(abi.encodePacked("Wrapped ",tokenParams.name)),string(abi.encodePacked("W", tokenParams.symbol)));
             tokenAddresses[tokenNativeAddress] = address(newERC20Token);
         }
         (success, result) = tokenAddresses[tokenNativeAddress].call(abi.encodeWithSelector(ERC20PresetMinterPauser.mint.selector, receiver, amount));
-        require(success, "Transaction failed. Could not mint new tokens.");
+        require(success);
         emit Mint(tokenNativeAddress, amount, receiver);
     }
 
-    function burn(bytes memory tokenNativeAddress, uint256 amount) public returns (bool success, bytes memory result) {
-        require(amount > 0, "We need to burn at least 1 token.");
+    mapping(address => uint32) public burningNonces;
+
+    //the way it's done now is we use the nonnative address as a parameter, which i think is correct.
+    //but we should also use a reverse mapping to keep the original token address so that we can show both addresses on the event
+    function burn(address tokenNativeAddress, uint32 amount) public returns (bool success, bytes memory result) {
+        require(amount > 0);
 
         (success, result) = tokenAddresses[tokenNativeAddress].call(abi.encodeWithSelector(ERC20Burnable.burnFrom.selector, msg.sender, amount));
-        require(success, "Transaction failed. Could not burn tokens. Make sure you have enough *approved* tokens to burn.");
+        require(success);
 
-        emit Burn(tokenNativeAddress, amount, msg.sender);
+        emit Burn(tokenNativeAddress, amount, msg.sender, burningNonces[msg.sender]++);
     }
 
-    function verify(string memory functionName, address tokenAddress, uint256 amount, uint8 v, bytes32 r, bytes32 s) public returns(address){
+    function verify(string memory functionName, address tokenAddress, address receiverAddress, uint32 amount, uint32 nonce, uint8 v, bytes32 r, bytes32 s) view public returns(address){
 
         bytes32 digest =
             keccak256(
@@ -112,8 +114,9 @@ contract TokenBridge is Ownable {
                             VERIFY_TYPEHASH,
                             keccak256(bytes(functionName)),
                             tokenAddress,
+                            receiverAddress,
                             amount,
-                            nonces[tokenAddress]++
+                            nonce
                         )
                     )
                 )
