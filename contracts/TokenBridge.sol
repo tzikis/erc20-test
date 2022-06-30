@@ -66,6 +66,7 @@ contract TokenBridge is Ownable {
     }
 
     mapping(address => address) public wrappedTokenAddresses;
+    mapping(address => address) public wrappedToNativeTokenAddresses;
 
     mapping(address => mapping(uint32 => bool)) public mintingNoncesUsed;
 
@@ -80,6 +81,7 @@ contract TokenBridge is Ownable {
         if(wrappedTokenAddresses[tokenNativeAddress] == address(0)){
             ERC20PresetMinterPauser newERC20Token = new ERC20PresetMinterPauser(string(abi.encodePacked("Wrapped ",tokenParams.name)),string(abi.encodePacked("W", tokenParams.symbol)));
             wrappedTokenAddresses[tokenNativeAddress] = address(newERC20Token);
+            wrappedToNativeTokenAddresses[address(newERC20Token)] = tokenNativeAddress;
         }
         (success, result) = wrappedTokenAddresses[tokenNativeAddress].call(abi.encodeWithSelector(ERC20PresetMinterPauser.mint.selector, receiver, amount));
         require(success);
@@ -89,13 +91,15 @@ contract TokenBridge is Ownable {
     mapping(address => uint32) public burningNonces;
 
     //decide if we should use the native or the non-native address here as a parameter
-    function burn(address tokenNativeAddress, uint32 amount) public returns (bool success, bytes memory result) {
+    function burn(address tokenWrappedAddress, uint32 amount) public returns (bool success, bytes memory result) {
         require(amount > 0);
 
-        (success, result) = wrappedTokenAddresses[tokenNativeAddress].call(abi.encodeWithSelector(ERC20Burnable.burnFrom.selector, msg.sender, amount));
+        address tokenNativeAddress = wrappedToNativeTokenAddresses[tokenWrappedAddress];
+
+        (success, result) = tokenWrappedAddress.call(abi.encodeWithSelector(ERC20Burnable.burnFrom.selector, msg.sender, amount));
         require(success);
 
-        emit Burn(tokenNativeAddress, msg.sender, amount, wrappedTokenAddresses[tokenNativeAddress], burningNonces[msg.sender]++);
+        emit Burn(tokenNativeAddress, msg.sender, amount, tokenWrappedAddress, burningNonces[msg.sender]++);
     }
 
     function verify(string memory functionName, address tokenAddress, address receiverAddress, uint32 amount, uint32 nonce, uint8 v, bytes32 r, bytes32 s) view public returns(address){
