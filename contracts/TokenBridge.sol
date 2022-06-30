@@ -27,6 +27,14 @@ contract TokenBridge is Ownable {
         );
     }
 
+    function getChainID() public view returns (uint256) {
+        uint256 id;
+        assembly {
+            id := chainid()
+        }
+        return id;
+    }
+
     mapping(address => mapping(address => uint32)) public lockedTokens;
     mapping(address => uint32) public lockingNonces;
 
