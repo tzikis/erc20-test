@@ -192,4 +192,31 @@ describe("Token Bridge", function () {
     expect(mintedAmount).to.equal(validLockData.amount + validSecondLockData.amount);
   });
 
+  it("Should fail when trying to burn 0 tokens", async function () {
+    expect(tokenBridgeContract.burn(differentChainId, wrappedTokenAddress, 0)).to.be.revertedWith("");
+  });
+
+  it("Should fail when trying to burn using the current chain as a target", async function () {
+    expect(tokenBridgeContract.burn(chainId, wrappedTokenAddress, 5)).to.be.revertedWith("");
+  });
+
+  it("Should fail when trying to burn if the user hasn't approved the contract to transferFrom them their tokens", async function () {
+    expect(tokenBridgeContract.burn(differentChainId, wrappedTokenAddress, 5)).to.be.revertedWith("");
+  });
+
+  it("Should burn a user's wrapped tokens if they have approved the contract to transferFrom them their tokens", async function () {
+
+    const mintedAmount = await wrappedTokenContract.balanceOf(owner.address);
+    let transactionObject;
+    transactionObject = await wrappedTokenContract.approve(tokenBridgeContractAddress, mintedAmount);
+    await transactionObject.wait();
+    const allowance = await wrappedTokenContract.allowance(owner.address, tokenBridgeContractAddress);
+    expect(allowance).to.equal(mintedAmount);
+
+    transactionObject = await tokenBridgeContract.burn(differentChainId, wrappedTokenAddress, mintedAmount);
+    await transactionObject.wait();
+    const newAmount = await wrappedTokenContract.balanceOf(owner.address);
+    expect(newAmount).to.equal(0);
+  });
+
 });
