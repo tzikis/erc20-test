@@ -11,16 +11,21 @@ describe("Token Bridge", function () {
   let owner;
   let addr1; 
 
+  let sampleTokenAddress;
+  let tokenBridgeContractAddress;
+
   before(async () => {
     [owner, addr1] = await ethers.getSigners();
 
     tokenSampleFactory = await ethers.getContractFactory("TZK");
     tokenSampleContract = await tokenSampleFactory.deploy();
     await tokenSampleContract.deployed();
+    sampleTokenAddress = tokenSampleContract.address;
 
     tokenBridgeFactory = await ethers.getContractFactory("TokenBridge");
     tokenBridgeContract = await tokenBridgeFactory.deploy();
     await tokenBridgeContract.deployed();
+    tokenBridgeContractAddress = tokenBridgeContract.address;
 
     const tokenMintingTx = await tokenSampleContract.tzikify(100000);
     // wait until the transaction is mined
