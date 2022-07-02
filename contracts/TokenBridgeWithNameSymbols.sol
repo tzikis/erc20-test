@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/token/ERC20/presets/ERC20PresetMinterPauser.sol"
     }
 
 
-contract TokenBridge{
+contract TokenBridgeNew {
     event Lock(uint256 _targetChain, address _token, address _owner, uint32 _amount, uint32 _nonce, TokenParams lockedTokenParams);
     event Unlock(uint256 _targetChain, address _token, address _owner, uint32 _amount);
 
