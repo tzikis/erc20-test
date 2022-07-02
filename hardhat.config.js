@@ -1,6 +1,8 @@
 require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-etherscan");
 
+require("solidity-coverage");
+
 const dotenv = require("dotenv");
 dotenv.config({path: __dirname + '/.env'});
 const { INFURA_API_KEY, PRIVATE_KEY, ETHERSCAN_API_KEY } = process.env;
