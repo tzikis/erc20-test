@@ -23,7 +23,15 @@ describe("Token Bridge", function () {
   let validLockData;
   let validLockSignature;
 
+  let validSecondLockData;
+  let validSecondLockSignature;
+
+  let validBurnData;
   let validBurnSignature;
+
+  const allowanceAmount = 100;
+  const burnAmount = 50; // half because we want to try burning again with the same nonce
+
 
   const createValidSignature = async (_signer, _tokenBridgeContractAddress, _functionName, _chainId, _tokenAddress, _receiverAddress, _amount, _nonce) => {
     // console.log(_signer + " " + _tokenBridgeContractAddress + " " + _functionName + " " + _chainId + " " + _tokenAddress + " " + _receiverAddress + " " + _amount + " " + _nonce);
@@ -95,7 +103,6 @@ describe("Token Bridge", function () {
 
   it("Should lock a user's native tokens if they have approved the contract to transferFrom them their tokens", async function () {
     let transactionObject;
-    const allowanceAmount = 100;
     transactionObject = await tokenSampleContract.approve(tokenBridgeContractAddress, allowanceAmount);
     await transactionObject.wait();
     const allowance = await tokenSampleContract.allowance(owner.address, tokenBridgeContractAddress);
@@ -166,9 +173,6 @@ describe("Token Bridge", function () {
     expect(tokenBridgeContract.mint(validLockData.chainId, validLockData.tokenAddress, validLockData.receiverAddress, validLockData.amount, validLockData.nonce, wrappedTokenInfo, validLockSignature.v, validLockSignature.r, validLockSignature.s)).to.be.revertedWith("");
   });
 
-  let validSecondLockData;
-  let secondSignature;
-  let  validSecondLockSignature;
   before(async () => {
     validSecondLockData = {
       functionName: "lock()", 
@@ -179,7 +183,7 @@ describe("Token Bridge", function () {
       nonce: 2
     };
 
-    secondSignature = await createValidSignature(owner, tokenBridgeContractAddress, validSecondLockData.functionName, validSecondLockData.chainId, validSecondLockData.tokenAddress, validSecondLockData.receiverAddress, validSecondLockData.amount, validSecondLockData.nonce);
+    const secondSignature = await createValidSignature(owner, tokenBridgeContractAddress, validSecondLockData.functionName, validSecondLockData.chainId, validSecondLockData.tokenAddress, validSecondLockData.receiverAddress, validSecondLockData.amount, validSecondLockData.nonce);
     validSecondLockSignature = ethers.utils.splitSignature(secondSignature);
   });
 
@@ -217,6 +221,46 @@ describe("Token Bridge", function () {
     await transactionObject.wait();
     const newAmount = await wrappedTokenContract.balanceOf(owner.address);
     expect(newAmount).to.equal(0);
+  });
+
+  it("Should fail when trying to unlock 0 tokens", async function () {
+    expect(tokenBridgeContract.unlock(chainId, sampleTokenAddress, owner.address, 0, 1, 28, "0x1483e41ac1f71fb32235555164c62d83845a273da03901fe6118d8a9ac9ea0a7", "0x1e75048fa860ed722a58ea241f0dcf862cf8a0d127da8b31c2a4cec9e7c60243")).to.be.revertedWith("");
+  });
+
+  it("Should fail when trying to unlock using a different chain as a target", async function () {
+    expect(tokenBridgeContract.unlock(differentChainId, sampleTokenAddress, owner.address, 5, 1, 28, "0x1483e41ac1f71fb32235555164c62d83845a273da03901fe6118d8a9ac9ea0a7", "0x1e75048fa860ed722a58ea241f0dcf862cf8a0d127da8b31c2a4cec9e7c60243")).to.be.revertedWith("");
+  });
+
+  it("Should fail when trying to unlock tokens we don't have", async function () {
+    expect(tokenBridgeContract.unlock(chainId, sampleTokenAddress, owner.address, burnAmount*2+1, 1, 28, "0x1483e41ac1f71fb32235555164c62d83845a273da03901fe6118d8a9ac9ea0a7", "0x1e75048fa860ed722a58ea241f0dcf862cf8a0d127da8b31c2a4cec9e7c60243")).to.be.revertedWith("");
+  });
+
+  it("Should fail when trying to unlock with an invalid signature", async function () {
+    expect(tokenBridgeContract.unlock(chainId, sampleTokenAddress, owner.address, burnAmount, 1, 28, "0x1483e41ac1f71fb32235555164c62d83845a273da03901fe6118d8a9ac9ea0a7", "0x1e75048fa860ed722a58ea241f0dcf862cf8a0d127da8b31c2a4cec9e7c60243")).to.be.revertedWith("");
+  });
+
+  before(async () => {
+    validBurnData = {
+      functionName: "burn()", 
+      chainId: chainId,
+      tokenAddress: sampleTokenAddress, 
+      receiverAddress: owner.address, 
+      amount: burnAmount,
+      nonce: 1
+    };
+
+    const signature = await createValidSignature(owner, tokenBridgeContractAddress, validBurnData.functionName, validBurnData.chainId, validBurnData.tokenAddress, validBurnData.receiverAddress, validBurnData.amount, validBurnData.nonce);
+    validBurnSignature = ethers.utils.splitSignature(signature);
+  });
+
+  it("Should work and unlock successfully with correct parameters and a valid signature", async function () {
+    let transactionObject;
+    transactionObject = await tokenBridgeContract.unlock(validBurnData.chainId, validBurnData.tokenAddress, validBurnData.receiverAddress, validBurnData.amount, validBurnData.nonce, validBurnSignature.v, validBurnSignature.r, validBurnSignature.s);
+    await transactionObject.wait();
+  });
+
+  it("Should fail when trying to unlock with the same nonce twice", async function () {
+    expect(tokenBridgeContract.unlock(validBurnData.chainId, validBurnData.tokenAddress, validBurnData.receiverAddress, validBurnData.amount, validBurnData.nonce, validBurnSignature.v, validBurnSignature.r, validBurnSignature.s)).to.be.revertedWith("");
   });
 
 });
