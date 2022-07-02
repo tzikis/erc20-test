@@ -147,13 +147,16 @@ describe("Token Bridge", function () {
     expect(tokenBridgeContract.mint(validLockData.chainId, validLockData.tokenAddress, validLockData.receiverAddress, validLockData.amount, validLockData.nonce, wrappedTokenInfo, invalidSignature.v, invalidSignature.r, invalidSignature.s)).to.be.revertedWith("");
   });
 
+  let wrappedTokenAddress;
+  let wrappedTokenContract;
+
   it("Should work when minting with valid info (with a non-existing token)", async function () {
     let transactionObject;
     transactionObject = await tokenBridgeContract.mint(validLockData.chainId, validLockData.tokenAddress, validLockData.receiverAddress, validLockData.amount, validLockData.nonce, wrappedTokenInfo, validLockSignature.v, validLockSignature.r, validLockSignature.s);
     await transactionObject.wait();
-    const wrappedTokenAddress = await tokenBridgeContract.wrappedTokenAddresses(sampleTokenAddress);
+    wrappedTokenAddress = await tokenBridgeContract.wrappedTokenAddresses(sampleTokenAddress);
 
-    wrappedTokenFactory = await ethers.getContractFactory("ERC20");
+    const wrappedTokenFactory = await ethers.getContractFactory("ERC20");
     wrappedTokenContract = await wrappedTokenFactory.attach(wrappedTokenAddress);
     const mintedAmount = await wrappedTokenContract.balanceOf(validLockData.receiverAddress);
     expect(mintedAmount).to.equal(validLockData.amount);
@@ -185,10 +188,6 @@ describe("Token Bridge", function () {
     let transactionObject;
     transactionObject = await tokenBridgeContract.mint(validSecondLockData.chainId, validSecondLockData.tokenAddress, validSecondLockData.receiverAddress, validSecondLockData.amount, validSecondLockData.nonce, wrappedTokenInfo, validSecondLockSignature.v, validSecondLockSignature.r, validSecondLockSignature.s);
     await transactionObject.wait();
-    const wrappedTokenAddress = await tokenBridgeContract.wrappedTokenAddresses(sampleTokenAddress);
-
-    wrappedTokenFactory = await ethers.getContractFactory("ERC20");
-    wrappedTokenContract = await wrappedTokenFactory.attach(wrappedTokenAddress);
     const mintedAmount = await wrappedTokenContract.balanceOf(validSecondLockData.receiverAddress);
     expect(mintedAmount).to.equal(validLockData.amount + validSecondLockData.amount);
   });
