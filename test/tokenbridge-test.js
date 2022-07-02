@@ -11,6 +11,9 @@ describe("Token Bridge", function () {
   let owner;
   let addr1; 
 
+  let chainId;
+  let validTargetChainId;
+
   let sampleTokenAddress;
   let tokenBridgeContractAddress;
 
@@ -31,24 +34,20 @@ describe("Token Bridge", function () {
     // wait until the transaction is mined
     await tokenMintingTx.wait();
     expect(await tokenSampleContract.balanceOf(owner.address)).to.equal(100000);
+
+    chainId = await tokenBridgeContract.getChainID();
+    validTargetChainId = chainId + 1;
   });
 
   it("Should lock a user's native tokens if they have approved the contract to transferFrom them their tokens", async function () {
     let transactionObject;
-    const sampleTokenAddress = tokenSampleContract.address;
-    const tokenBridgeContractAddress = tokenBridgeContract.address;
-    // console.log(owner.address);
-    // console.log(tokenBridgeContractAddress);
-    // console.log(sampleTokenAddress);
-
     const allowanceAmount = 100;
     transactionObject = await tokenSampleContract.approve(tokenBridgeContractAddress, allowanceAmount);
     await transactionObject.wait();
     const allowance = await tokenSampleContract.allowance(owner.address, tokenBridgeContractAddress);
     expect(allowance).to.equal(allowanceAmount);
 
-    const targetChain = 3;
-    transactionObject = await tokenBridgeContract.lock(targetChain, sampleTokenAddress, allowanceAmount);
+    transactionObject = await tokenBridgeContract.lock(validTargetChainId, sampleTokenAddress, allowanceAmount);
     await transactionObject.wait();
     const lockedAmount = await tokenBridgeContract.lockedTokens(sampleTokenAddress, owner.address);
     expect(lockedAmount).to.equal(allowanceAmount);
