@@ -43,7 +43,7 @@ describe("Token Bridge", function () {
     expect(tokenBridgeContract.lock(chainId+1, sampleTokenAddress, 0)).to.be.revertedWith("");
   });
 
-  it("Should fail when trying to lock if the user hasn't approved the contract to transferFrom them their tokens", async function () {
+  it("Should fail when trying to lock using the current chain as a target", async function () {
     const targetChain = chainId+1;
     expect(tokenBridgeContract.lock(targetChain, sampleTokenAddress, 5)).to.be.revertedWith("");
   });
