@@ -114,6 +114,7 @@ contract TokenBridge{
         require(targetChain != getChainID());
 
         address tokenNativeAddress = wrappedToNativeTokenAddresses[tokenWrappedAddress];
+        require (tokenNativeAddress != address(0));
 
         (success, result) = tokenWrappedAddress.call(abi.encodeWithSelector(ERC20Burnable.burnFrom.selector, msg.sender, amount));
         require(success);

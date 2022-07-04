@@ -204,6 +204,10 @@ describe("Token Bridge", function () {
     expect(tokenBridgeContract.burn(chainId, wrappedTokenAddress, 5)).to.be.revertedWith("");
   });
 
+  it("Should fail when trying to burn using an address we haven't minted", async function () {
+    expect(tokenBridgeContract.burn(differentChainId, sampleTokenAddress, 5)).to.be.revertedWith("");
+  });
+
   it("Should fail when trying to burn if the user hasn't approved the contract to transferFrom them their tokens", async function () {
     expect(tokenBridgeContract.burn(differentChainId, wrappedTokenAddress, 5)).to.be.revertedWith("");
   });
